@@ -19,9 +19,7 @@ services:
       retries: 10
 
   backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
+    image: todo-backend:ci
     container_name: todo-backend-app
     restart: unless-stopped
     environment:
@@ -36,9 +34,7 @@ services:
     command: sh -c "pnpm exec prisma migrate deploy && node dist/index.js"
 
   frontend:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
+    image: todo-frontend:ci
     container_name: todo-frontend-app
     restart: unless-stopped
     depends_on:
