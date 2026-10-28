@@ -1,0 +1,59 @@
+
+services:
+  db:
+    image: postgres:15
+    container_name: todo-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: todo_user
+      POSTGRES_PASSWORD: todo_password
+      POSTGRES_DB: todo_db
+    volumes:
+      - todo-postgres-data:/var/lib/postgresql/data
+    networks:
+      - todo-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U todo_user -d todo_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: todo-backend-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://todo_user:todo_password@db:5432/todo_db
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - todo-network
+    expose:
+      - "8081"
+    command: sh -c "pnpm exec prisma migrate deploy && node dist/index.js"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: todo-frontend-app
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8083:80"
+    networks:
+      - todo-network
+
+volumes:
+  todo-postgres-data:
+    external: true
+    name: todo-postgres-data
+
+networks:
+  todo-network:
+    driver: bridge
+

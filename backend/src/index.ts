@@ -1,7 +1,7 @@
 import express from "express";
 import todos from "./todos";
 
-const SERVER_PORT = 8080;
+const SERVER_PORT = 8081;
 
 async function main() {
   const app = express();
