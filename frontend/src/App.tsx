@@ -119,7 +119,7 @@ function Todos() {
           <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-blue-100">
             Stay organized
           </p>
-          <h1 className="text-4xl font-extrabold tracking-tight text-red">
+          <h1 className="text-5xl font-extrabold tracking-tight text-red">
             My Task Dashboard
           </h1>
           <p className="mt-3 text-blue-100">
