@@ -150,7 +150,7 @@ function Todos() {
             <button
               type="submit"
               disabled={!title.trim() || postMutation.isLoading}
-              className="h-12 rounded-xl bg-blue-500 px-5 font-semibold transition hover:bg-blue-400 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              className="h-12 rounded-xl bg-green-500 px-5 font-semibold transition hover:bg-green-400 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {postMutation.isLoading ? "Adding..." : "+ Add"}
             </button>
