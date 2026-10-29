@@ -120,7 +120,7 @@ function Todos() {
             Stay organized
           </p>
           <h1 className="text-4xl font-extrabold tracking-tight text-red">
-            Todo Dashboard
+            My Dashboard
           </h1>
           <p className="mt-3 text-blue-100">
             Plan your day. Track your progress. Get things done.
