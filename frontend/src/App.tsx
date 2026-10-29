@@ -113,7 +113,7 @@ function Todos() {
   });
 
   return (
-    <div className="min-h-screen bg-emerald-950 text-red">
+    <div className="min-h-screen bg-violet-950 text-red">
       <div className="mx-auto flex max-w-3xl flex-col gap-8 px-5 py-10 sm:px-8">
         <header className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-8 shadow-xl shadow-blue-950/30">
           <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-blue-100">
