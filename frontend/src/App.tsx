@@ -24,6 +24,14 @@ function Todos() {
   const { data } = useQuery("todos", getTodos);
   const queryClient = useQueryClient();
 
+  // Dynamic task statistics
+  const totalTasks = data?.length ?? 0;
+
+  const completedTasks =
+    data?.filter((todo) => todo.completed).length ?? 0;
+
+  const pendingTasks = totalTasks - completedTasks;
+
   const postMutation = useMutation(postTodo, {
     onMutate: async (newTodoTitle) => {
       await queryClient.cancelQueries("todos");
@@ -115,16 +123,47 @@ function Todos() {
   return (
     <div className="min-h-screen bg-violet-950 text-red">
       <div className="mx-auto flex max-w-3xl flex-col gap-8 px-5 py-10 sm:px-8">
-        <header className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-8 shadow-xl shadow-blue-950/30">
-          <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-blue-100">
-            Stay organized
-          </p>
-          <h1 className="text-5xl font-extrabold tracking-tight text-red">
-            My Dashboard
-          </h1>
-          <p className="mt-3 text-blue-100">
-            Plan your day. Track your progress. Get things done.
-          </p>
+
+        {/* Compact Dashboard Card */}
+        <header className="rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-lg">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-blue-400">
+                Task Manager
+              </p>
+
+              <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">
+                My Tasks
+              </h1>
+
+              <p className="mt-1 text-sm text-slate-400">
+                Organize your work and track your daily progress.
+              </p>
+            </div>
+
+            <div className="flex gap-5">
+              <div>
+                <p className="text-2xl font-bold text-white">
+                  {totalTasks}
+                </p>
+                <p className="text-xs text-slate-400">Total</p>
+              </div>
+
+              <div>
+                <p className="text-2xl font-bold text-green-400">
+                  {completedTasks}
+                </p>
+                <p className="text-xs text-slate-400">Completed</p>
+              </div>
+
+              <div>
+                <p className="text-2xl font-bold text-yellow-400">
+                  {pendingTasks}
+                </p>
+                <p className="text-xs text-slate-400">Pending</p>
+              </div>
+            </div>
+          </div>
         </header>
 
         <main className="flex flex-col gap-5">
@@ -159,7 +198,7 @@ function Todos() {
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold">Your tasks</h2>
             <span className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-300">
-              {data?.length ?? 0} tasks
+              {totalTasks} tasks
             </span>
           </div>
 
@@ -222,3 +261,4 @@ function Todos() {
     </div>
   );
 }
+
