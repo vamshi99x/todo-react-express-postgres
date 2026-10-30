@@ -2,82 +2,59 @@
 pipeline {
     agent any
 
-    environment {
-        AWS_REGION = 'ap-southeast-2'
-        AWS_ACCOUNT_ID = '977468846243'
-        ECR_REGISTRY = '977468846243.dkr.ecr.ap-southeast-2.amazonaws.com'
-    }
-
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                git branch: 'release/0.0.2',
+                    url: 'https://github.com/vamshi99x/todo-react-express-postgres.git'
             }
         }
 
-        stage('Build Backend') {
+        stage('Build Backend Docker Image') {
             steps {
-                sh '''
-                    docker build \
-                      -f backend/Dockerfile \
-                      -t todo-backend:ci .
-                '''
+                sh 'docker build -f backend/Dockerfile -t todo-backend:ci .'
             }
         }
 
-        stage('Build Frontend') {
+        stage('Build Frontend Docker Image') {
             steps {
-                sh '''
-                    docker build \
-                      -f frontend/Dockerfile \
-                      -t todo-frontend:ci .
-                '''
+                sh 'docker build -f frontend/Dockerfile -t todo-frontend:ci .'
             }
         }
 
-        stage('Login to ECR') {
+        stage('Verify Docker Images') {
             steps {
-                sh '''
-                    aws ecr get-login-password \
-                      --region $AWS_REGION |
-                    docker login \
-                      --username AWS \
-                      --password-stdin $ECR_REGISTRY
-                '''
+                sh 'docker image inspect todo-backend:ci'
+                sh 'docker image inspect todo-frontend:ci'
             }
         }
 
-        stage('Push Backend to ECR') {
+        stage('Prepare Database Volume') {
             steps {
-                sh '''
-                    docker tag todo-backend:ci \
-                      $ECR_REGISTRY/todo-backend:latest
-
-                    docker push \
-                      $ECR_REGISTRY/todo-backend:latest
-                '''
+                sh 'docker volume create todo-postgres-data'
             }
         }
 
-        stage('Push Frontend to ECR') {
+        stage('Deploy Application') {
             steps {
-                sh '''
-                    docker tag todo-frontend:ci \
-                      $ECR_REGISTRY/todo-frontend:latest
+                sh 'docker compose -p todo-react-express-postgres up -d --no-build'
+            }
+        }
 
-                    docker push \
-                      $ECR_REGISTRY/todo-frontend:latest
-                '''
+        stage('Verify Deployment') {
+            steps {
+                sh 'docker compose -p todo-react-express-postgres ps'
+                sh 'curl --fail --retry 5 --retry-delay 2 http://localhost:8083/'
             }
         }
     }
 
     post {
         success {
-            echo 'Both Docker images pushed successfully to Amazon ECR!'
+            echo 'Todo application deployed successfully on AWS EC2!'
         }
         failure {
-            echo 'Pipeline failed. Check Console Output.'
+            echo 'Deployment failed. Check Console Output.'
         }
     }
 }
