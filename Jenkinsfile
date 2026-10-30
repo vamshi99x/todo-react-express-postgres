@@ -2,15 +2,20 @@
 pipeline {
     agent any
 
+    environment {
+        AWS_REGION = 'ap-southeast-2'
+        AWS_ACCOUNT_ID = '977468846243'
+        ECR_REGISTRY = '977468846243.dkr.ecr.ap-southeast-2.amazonaws.com'
+    }
+
     stages {
         stage('Checkout') {
             steps {
-                echo 'Downloading source code from GitHub'
                 checkout scm
             }
         }
 
-        stage('Build Backend Image') {
+        stage('Build Backend') {
             steps {
                 sh '''
                     docker build \
@@ -20,7 +25,7 @@ pipeline {
             }
         }
 
-        stage('Build Frontend Image') {
+        stage('Build Frontend') {
             steps {
                 sh '''
                     docker build \
@@ -30,19 +35,49 @@ pipeline {
             }
         }
 
-        stage('Verify Images') {
+        stage('Login to ECR') {
             steps {
-                sh 'docker images | grep todo-'
+                sh '''
+                    aws ecr get-login-password \
+                      --region $AWS_REGION |
+                    docker login \
+                      --username AWS \
+                      --password-stdin $ECR_REGISTRY
+                '''
+            }
+        }
+
+        stage('Push Backend to ECR') {
+            steps {
+                sh '''
+                    docker tag todo-backend:ci \
+                      $ECR_REGISTRY/todo-backend:latest
+
+                    docker push \
+                      $ECR_REGISTRY/todo-backend:latest
+                '''
+            }
+        }
+
+        stage('Push Frontend to ECR') {
+            steps {
+                sh '''
+                    docker tag todo-frontend:ci \
+                      $ECR_REGISTRY/todo-frontend:latest
+
+                    docker push \
+                      $ECR_REGISTRY/todo-frontend:latest
+                '''
             }
         }
     }
 
     post {
         success {
-            echo 'Both Docker images built successfully!'
+            echo 'Both Docker images pushed successfully to Amazon ECR!'
         }
         failure {
-            echo 'Pipeline failed. Check the console output.'
+            echo 'Pipeline failed. Check Console Output.'
         }
     }
 }
