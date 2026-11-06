@@ -29,7 +29,7 @@ pipeline {
 
         stage('Build Frontend Docker Image') {
             steps {
-                sh 'docker build -f frontend/Dockerfile -t todo-frontend:ci .'
+                sh 'docker build -f frontend/Dockerfile -t todo-frontend:ci --no-cache .'
             }
         }
 
