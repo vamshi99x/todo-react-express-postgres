@@ -1,0 +1,82 @@
+
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
+    environment {
+        AWS_DEFAULT_REGION = 'ap-southeast-2'
+        S3_BUCKET = 'todo-frontend-static-11nov'
+        CLOUDFRONT_DISTRIBUTION_ID = 'E3VPIKCVU0CZD5'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                dir('frontend') {
+                    sh 'npm ci'
+                }
+            }
+        }
+
+        stage('Build Frontend') {
+            steps {
+                dir('frontend') {
+                    sh 'npm run build'
+                }
+            }
+        }
+
+        stage('Validate Build') {
+            steps {
+                sh '''
+                    test -f frontend/dist/index.html
+                    test -d frontend/dist/assets
+                    echo "Frontend build validation successful"
+                '''
+            }
+        }
+
+        stage('Deploy to S3') {
+            steps {
+                sh '''
+                    aws sts get-caller-identity
+
+                    aws s3 sync frontend/dist/ \
+                        s3://${S3_BUCKET}/ \
+                        --delete
+                '''
+            }
+        }
+
+        stage('CloudFront Invalidation') {
+            steps {
+                sh '''
+                    aws cloudfront create-invalidation \
+                        --distribution-id ${CLOUDFRONT_DISTRIBUTION_ID} \
+                        --paths "/*"
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Frontend successfully deployed to S3 and CloudFront invalidation requested!'
+        }
+
+        failure {
+            echo 'Pipeline failed. Check the Jenkins console output.'
+        }
+    }
+}
