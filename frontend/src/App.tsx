@@ -120,11 +120,10 @@ function Todos() {
             Stay organized
           </p>
           <h1 className="text-5xl font-extrabold tracking-tight text-red">
-            My Task Dashboard
+            Todo Application - Deployed with Jenkins CI/CD
           </h1>
           <p className="mt-3 text-blue-100">
-            Plan your day. Track your progress. Get things done.
-          </p>
+            Plan your day. Track your progress. Get things done.          </p>
         </header>
 
         <main className="flex flex-col gap-5">
