@@ -1,4 +1,6 @@
+
 {
+  "packageManager": "pnpm@8.15.9",
   "scripts": {
     "backend": "pnpm --filter=./backend",
     "frontend": "pnpm --filter=./frontend",
@@ -9,3 +11,4 @@
     "dev": "pnpm -r dev"
   }
 }
+
