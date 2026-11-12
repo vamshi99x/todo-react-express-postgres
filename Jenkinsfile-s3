@@ -10,11 +10,9 @@ pipeline {
     environment {
         AWS_DEFAULT_REGION = 'ap-southeast-2'
         S3_BUCKET = 'todo-frontend-static-11nov'
-        CLOUDFRONT_DISTRIBUTION_ID = 'E3VPIKCVU0CZD5'
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 checkout scm
@@ -57,21 +55,11 @@ pipeline {
                 '''
             }
         }
-
-        stage('CloudFront Invalidation') {
-            steps {
-                sh '''
-                    aws cloudfront create-invalidation \
-                        --distribution-id ${CLOUDFRONT_DISTRIBUTION_ID} \
-                        --paths "/*"
-                '''
-            }
-        }
     }
 
     post {
         success {
-            echo 'Frontend successfully deployed to S3 and CloudFront invalidation requested!'
+            echo 'Frontend successfully deployed to S3!'
         }
 
         failure {
