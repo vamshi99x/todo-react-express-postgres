@@ -5,15 +5,20 @@ pipeline {
     environment {
         AWS_REGION = 'ap-southeast-2'
         AWS_ACCOUNT_ID = '977468846243'
-
-        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ECR_REGISTRY = '977468846243.dkr.ecr.ap-southeast-2.amazonaws.com'
 
         BACKEND_REPO = 'todo-backend'
         FRONTEND_REPO = 'todo-frontend'
+
+        ECS_CLUSTER = 'todo-cluster'
+        BACKEND_SERVICE = 'todo-backend-service'
+        FRONTEND_SERVICE = 'todo-frontend-service'
+
+        BACKEND_TASK_FAMILY = 'todo-backend-task'
+        FRONTEND_TASK_FAMILY = 'todo-frontend-task'
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 git branch: 'main',
@@ -21,42 +26,26 @@ pipeline {
             }
         }
 
-        stage('Build Backend Docker Image') {
+        stage('Build Docker Images') {
             steps {
-                sh 'docker build -f backend/Dockerfile -t todo-backend:ci .'
-            }
-        }
+                sh '''
+                    set -e
+                    docker build -f backend/Dockerfile \
+                        -t todo-backend:${BUILD_NUMBER} .
 
-        stage('Build Frontend Docker Image') {
-            steps {
-                sh 'docker build -f frontend/Dockerfile -t todo-frontend:ci --no-cache .'
-            }
-        }
-
-        stage('Verify Docker Images') {
-            steps {
-                sh 'docker image inspect todo-backend:ci'
-                sh 'docker image inspect todo-frontend:ci'
+                    docker build --build-arg DEPLOY_ENV=aws \
+                        -f frontend/Dockerfile \
+                        -t todo-frontend:${BUILD_NUMBER} .
+                '''
             }
         }
 
         stage('Authenticate with ECR') {
             steps {
                 sh '''
+                    set -e
                     aws ecr get-login-password --region $AWS_REGION |
                     docker login --username AWS --password-stdin $ECR_REGISTRY
-                '''
-            }
-        }
-
-        stage('Tag Docker Images') {
-            steps {
-                sh '''
-                    docker tag todo-backend:ci \
-                    $ECR_REGISTRY/$BACKEND_REPO:latest
-
-                    docker tag todo-frontend:ci \
-                    $ECR_REGISTRY/$FRONTEND_REPO:latest
                 '''
             }
         }
@@ -64,39 +53,125 @@ pipeline {
         stage('Push Images to ECR') {
             steps {
                 sh '''
-                    docker push $ECR_REGISTRY/$BACKEND_REPO:latest
-                    docker push $ECR_REGISTRY/$FRONTEND_REPO:latest
+                    set -e
+                    docker tag todo-backend:${BUILD_NUMBER} \
+                        $ECR_REGISTRY/$BACKEND_REPO:${BUILD_NUMBER}
+
+                    docker tag todo-frontend:${BUILD_NUMBER} \
+                        $ECR_REGISTRY/$FRONTEND_REPO:${BUILD_NUMBER}
+
+                    docker push $ECR_REGISTRY/$BACKEND_REPO:${BUILD_NUMBER}
+                    docker push $ECR_REGISTRY/$FRONTEND_REPO:${BUILD_NUMBER}
                 '''
             }
         }
 
-        stage('Prepare Database Volume') {
+        stage('Register ECS Task Definitions') {
             steps {
-                sh 'docker volume create todo-postgres-data'
+                sh '''
+                    set -e
+
+                    aws ecs describe-task-definition \
+                        --task-definition $BACKEND_TASK_FAMILY \
+                        --region $AWS_REGION \
+                        --query taskDefinition > backend-task.json
+
+                    aws ecs describe-task-definition \
+                        --task-definition $FRONTEND_TASK_FAMILY \
+                        --region $AWS_REGION \
+                        --query taskDefinition > frontend-task.json
+
+                    jq --arg IMAGE "$ECR_REGISTRY/$BACKEND_REPO:${BUILD_NUMBER}" \
+                       'if any(.containerDefinitions[]; .name == "todo-backend")
+                        then (.containerDefinitions |= map(
+                            if .name == "todo-backend" then .image = $IMAGE else . end))
+                        else error("Backend container not found")
+                        end
+                        | del(.taskDefinitionArn, .revision, .status,
+                              .requiresAttributes, .compatibilities,
+                              .registeredAt, .registeredBy, .deregisteredAt)' \
+                       backend-task.json > backend-task-new.json
+
+                    jq --arg IMAGE "$ECR_REGISTRY/$FRONTEND_REPO:${BUILD_NUMBER}" \
+                       'if any(.containerDefinitions[]; .name == "todo-frontend")
+                        then (.containerDefinitions |= map(
+                            if .name == "todo-frontend" then .image = $IMAGE else . end))
+                        else error("Frontend container not found")
+                        end
+                        | del(.taskDefinitionArn, .revision, .status,
+                              .requiresAttributes, .compatibilities,
+                              .registeredAt, .registeredBy, .deregisteredAt)' \
+                       frontend-task.json > frontend-task-new.json
+
+                    aws ecs register-task-definition \
+                        --cli-input-json file://backend-task-new.json \
+                        --region $AWS_REGION \
+                        --query taskDefinition.taskDefinitionArn \
+                        --output text > backend-task-arn.txt
+
+                    aws ecs register-task-definition \
+                        --cli-input-json file://frontend-task-new.json \
+                        --region $AWS_REGION \
+                        --query taskDefinition.taskDefinitionArn \
+                        --output text > frontend-task-arn.txt
+                '''
             }
         }
 
-        stage('Deploy Application') {
+        stage('Deploy to ECS') {
             steps {
-                sh 'docker compose -p todo-react-express-postgres up -d --no-build'
+                sh '''
+                    set -e
+
+                    BACKEND_TASK_ARN=$(cat backend-task-arn.txt)
+                    FRONTEND_TASK_ARN=$(cat frontend-task-arn.txt)
+
+                    aws ecs update-service \
+                        --cluster $ECS_CLUSTER \
+                        --service $BACKEND_SERVICE \
+                        --task-definition "$BACKEND_TASK_ARN" \
+                        --region $AWS_REGION
+
+                    aws ecs update-service \
+                        --cluster $ECS_CLUSTER \
+                        --service $FRONTEND_SERVICE \
+                        --task-definition "$FRONTEND_TASK_ARN" \
+                        --region $AWS_REGION
+                '''
+            }
+        }
+
+        stage('Wait for ECS Stability') {
+            steps {
+                sh '''
+                    aws ecs wait services-stable \
+                        --cluster $ECS_CLUSTER \
+                        --services $BACKEND_SERVICE $FRONTEND_SERVICE \
+                        --region $AWS_REGION
+                '''
             }
         }
 
         stage('Verify Deployment') {
             steps {
-                sh 'docker compose -p todo-react-express-postgres ps'
-                sh 'curl --fail --retry 5 --retry-delay 2 http://localhost:8083/'
+                sh '''
+                    aws ecs describe-services \
+                        --cluster $ECS_CLUSTER \
+                        --services $BACKEND_SERVICE $FRONTEND_SERVICE \
+                        --region $AWS_REGION \
+                        --query 'services[*].[serviceName,status,taskDefinition,runningCount]' \
+                        --output table
+                '''
             }
         }
     }
 
     post {
         success {
-            echo 'Todo application built and pushed to ECR successfully!'
+            echo 'SUCCESS: Todo application deployed to ECS!'
         }
-
         failure {
-            echo 'Pipeline failed. Check Console Output.'
+            echo 'FAILED: Check Jenkins Console Output.'
         }
     }
 }
